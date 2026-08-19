@@ -1,0 +1,36 @@
+FROM docker.io/library/debian:13.1-slim
+
+ARG GROUP_ID=9898
+ARG USER_ID=9898
+
+RUN set -eux; apt update; \
+    apt install -y --no-install-recommends vsftpd libpam-mysql; \
+    rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    groupadd \
+        --gid "${GROUP_ID}" \
+        ftpuser; \
+    useradd \
+        --uid "${USER_ID}" \
+        --gid "${GROUP_ID}" \
+        --home-dir /srv/ftp \
+        --create-home \
+        --shell /usr/sbin/nologin \
+        ftpuser
+
+RUN set -eux; \
+    mkdir -p /srv/ftp; \
+    mkdir -p /var/run/vsftpd/empty; \
+    chown ftpuser:ftpuser /srv/ftp; \
+    chmod 0750 /srv/ftp; \
+    chown root:root /var/run/vsftpd/empty; \
+    chmod 0555 /var/run/vsftpd/empty
+
+COPY --chmod=0555 vsftpd_entrypoint.sh /entrypoint.sh
+
+EXPOSE 20/tcp
+EXPOSE 21/tcp
+EXPOSE 21100-21110/tcp
+
+ENTRYPOINT ["/entrypoint.sh"]

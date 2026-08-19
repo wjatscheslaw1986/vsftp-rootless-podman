@@ -1,0 +1,21 @@
+FROM docker.io/library/debian:13.1-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        mariadb-server \
+        mariadb-client; \
+    rm -rf /var/lib/apt/lists/*; \
+    mkdir -p /run/mysqld /var/lib/mysql; \
+    chown mysql:mysql /run/mysqld /var/lib/mysql; \
+    chmod 0750 /run/mysqld /var/lib/mysql
+
+COPY mariadb_entrypoint.sh /usr/local/bin/mariadb-entrypoint.sh
+
+RUN chmod 0755 /usr/local/bin/mariadb-entrypoint.sh
+
+EXPOSE 3306
+
+ENTRYPOINT ["/usr/local/bin/mariadb-entrypoint.sh"]

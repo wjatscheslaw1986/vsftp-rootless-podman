@@ -1,0 +1,4 @@
+secrets/*
+!secrets/.gitkeep
+cert/*
+!cert/.gitkeep
