@@ -14,7 +14,7 @@ if [ "$(id -u)" = 0 ]; then
     chown -R "${MARIADB_OWNERSHIP}" "${BASE_DIR}/log/mariadb"
     echo "Directory structure created"
 else
-    echo "You need to execute 'chown -R "${VSFTPD_OWNERSHIP}" "${BASE_DIR}/{ftp,log/vsftpd}"' with root privileges, presumably"
-    echo "You need to execute 'chown -R "${MARIADB_OWNERSHIP}" "${BASE_DIR}/{mariadb,log/mariadb}"' with root privileges, presumably"
+    echo "You need to execute 'chown -R "${VSFTPD_OWNERSHIP}" "${BASE_DIR}/\{ftp,log/vsftpd\}"' with root privileges, presumably"
+    echo "You need to execute 'chown -R "${MARIADB_OWNERSHIP}" "${BASE_DIR}/\{mariadb,log/mariadb\}"' with root privileges, presumably"
 fi
 
