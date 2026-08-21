@@ -2,3 +2,4 @@ secrets/*
 !secrets/.gitkeep
 cert/*
 !cert/.gitkeep
+llm.txt

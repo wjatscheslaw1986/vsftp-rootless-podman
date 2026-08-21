@@ -3,18 +3,21 @@
 set -Eeuo pipefail
 
 DATADIR="${MARIADB_DATADIR:-/var/lib/mysql}"
+LOGDIR="${MARIADB_LOGDIR:-/var/log/mariadb}"
 SOCKET="${MARIADB_SOCKET:-/run/mysqld/mysqld.sock}"
+PID="${MARIADB_PID:-/run/mysqld/mariadb.pid}"
 
 MYSQL_USER="${MARIADB_USER:-ftp_auth}"
 MYSQL_DATABASE="${MARIADB_DATABASE:-ftp}"
 MYSQL_PASSWORD_FILE="${MARIADB_PASSWORD_FILE:-/run/secrets/mariadb-password}"
 MARIADB_ROOT_PASSWORD_FILE="${MARIADB_ROOT_PASSWORD_FILE:-/run/secrets/mariadb-root-password}"
 
-MYSQL_SYSTEM_USER="mysql"
-MYSQL_SYSTEM_GROUP="mysql"
+MYSQL_SYSTEM_USER="${MARIADB_SYSTEM_USER:-mysql}"
+MYSQL_SYSTEM_GROUP="${MARIADB_SYSTEM_GROUP:-mysql}"
 
 TEMP_PID=""
 
+INIT_LOG="${LOGDIR}/mariadb-init.log"
 
 log() {
     printf '[mariadb-entrypoint] %s\n' "$*" >&2
@@ -71,14 +74,20 @@ sql_escape_string() {
 
 
 setup_directories() {
-    mkdir -p "$DATADIR"
-    mkdir -p "$(dirname "$SOCKET")"
+    mkdir -p \
+        "$DATADIR" \
+        "$(dirname "$SOCKET")" \
+        "$LOGDIR"
 
-    chown "$MYSQL_SYSTEM_USER:$MYSQL_SYSTEM_GROUP" "$DATADIR"
-    chown "$MYSQL_SYSTEM_USER:$MYSQL_SYSTEM_GROUP" "$(dirname "$SOCKET")"
+    chown "$MYSQL_SYSTEM_USER:$MYSQL_SYSTEM_GROUP" \
+        "$DATADIR" \
+        "$(dirname "$SOCKET")" \
+        "$LOGDIR"
 
-    chmod 0750 "$DATADIR"
-    chmod 0750 "$(dirname "$SOCKET")"
+    chmod 0755 \
+        "$DATADIR" \
+        "$(dirname "$SOCKET")" \
+        "$LOGDIR"
 }
 
 
@@ -100,23 +109,26 @@ initialize_datadir() {
 
 
 start_temporary_server() {
-    rm -f "$SOCKET"
+    rm -f "$SOCKET" "$PID"
 
     log "Starting temporary MariaDB server."
 
     mariadbd \
+        --console \
         --datadir="$DATADIR" \
         --user="$MYSQL_SYSTEM_USER" \
         --socket="$SOCKET" \
         --skip-networking \
-        --pid-file=/run/mysqld/mariadb-init.pid \
+        --pid-file="$PID" \
+        --log-error="$INIT_LOG" \
         &
 
     TEMP_PID=$!
 
-    log "Waiting for temporary MariaDB server."
+    log "Temporary MariaDB PID: $TEMP_PID"
+    log "Waiting for temporary MariaDB server to start."
 
-    for _ in $(seq 1 60); do
+    for second in $(seq 1 60); do
         if mariadb-admin \
             --no-defaults \
             --protocol=socket \
@@ -139,24 +151,52 @@ start_temporary_server() {
 
 
 stop_temporary_server() {
-    if [[ -z "$TEMP_PID" ]]; then
-        return
-    fi
+    local pid="$TEMP_PID"
 
-    if kill -0 "$TEMP_PID" 2>/dev/null; then
-        log "Stopping temporary MariaDB server."
+    if [[ -n "$pid" ]] || return 0
 
+    log "Stopping temporary MariaDB server (PID $pid)."
+
+    if kill -0 "$pid" 2>/dev/null; then
         mariadb-admin \
             --no-defaults \
             --protocol=socket \
             --socket="$SOCKET" \
-            shutdown
+            shutdown > /dev/null 2>&1 || true
+    fi
 
-        wait "$TEMP_PID" || true
+     # First wait for normal termination.
+    for _ in $(seq 1 100); do
+        if ! kill -0 "$pid" 2>/dev/null; then
+            break
+        fi
+        sleep 0.1
+    done
+
+    # If shutdown did not finish, terminate it explicitly.
+    if kill -0 "$pid" 2>/dev/null; then
+        log "Temporary MariaDB did not exit after shutdown; sending SIGTERM."
+        kill -TERM "$pid" 2>/dev/null || true
+    fi
+
+    # Reap the process.
+    wait "$pid" 2>/dev/null || true
+
+    # Do not trust the socket disappearing alone; check both.
+    for _ in $(seq 1 100); do
+        if [[ ! -e "$SOCKET" && ! -e "$PIDFILE" ]]; then
+            break
+        fi
+        sleep 0.1
+    done
+
+    if [[ -e "$SOCKET" || -e "$PIDFILE" ]]; then
+        die "Temporary MariaDB did not release socket/PID files."
     fi
 
     TEMP_PID=""
     rm -f "$SOCKET"
+    log "Temporary MariaDB server stopped completely."
 }
 
 
@@ -169,11 +209,9 @@ configure_database() {
 
     root_password="$(read_secret "$MARIADB_ROOT_PASSWORD_FILE")"
     mysql_password="$(read_secret "$MYSQL_PASSWORD_FILE")"
-
     root_password_sql="$(sql_escape_string "$root_password")"
     mysql_password_sql="$(sql_escape_string "$mysql_password")"
-
-    sql_file="/run/mysqld/mariadb-initialize.sql"
+    sql_file="/run/mysqld/mariadb-init.sql"
 
     cat >"$sql_file" <<EOF
 ALTER USER 'root'@'localhost'
@@ -181,17 +219,23 @@ ALTER USER 'root'@'localhost'
 
 CREATE DATABASE IF NOT EXISTS \`${MYSQL_DATABASE}\`
     CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
+    COLLATE utf8mb4_unicode_ci
+    COMMENT 'FTP server auth database';
+
+USE \`${MYSQL_DATABASE}\`;
+
+CREATE TABLE IF NOT EXISTS ftp_users (
+    username       varchar(256) PRIMARY KEY,
+    password_hash  varchar(512) NOT NULL,
+    enabled        boolean NOT NULL DEFAULT true
+);
 
 CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'%'
     IDENTIFIED BY ${mysql_password_sql};
 
-ALTER USER '${MYSQL_USER}'@'%'
-    IDENTIFIED BY ${mysql_password_sql};
-
-GRANT ALL PRIVILEGES
+GRANT SELECT
     ON \`${MYSQL_DATABASE}\`.ftp_users
-    TO '${MYSQL_USER}'@'127.0.0.1';
+    TO '${MYSQL_USER}'@'%';
 
 EOF
 
@@ -211,7 +255,7 @@ EOF
         --batch \
         <"$sql_file"
 
-    rm -f "$sql_file"
+    shred "$sql_file" && rm -f "$sql_file"
 
     log "MariaDB accounts and database configured."
 }
@@ -266,7 +310,8 @@ main() {
         --user="$MYSQL_SYSTEM_USER" \
         --bind-address=0.0.0.0 \
         --port=3306 \
-        --pid-file=/run/mysqld/mariadb.pid
+        --pid-file="$PID" \
+        --log-error="$LOGDIR/mariadb.log"
 }
 
 

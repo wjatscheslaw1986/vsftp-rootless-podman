@@ -8,10 +8,30 @@ if [ "$(id -u)" = 0 ]; then
   exit 1
 fi
 
-SERVICE_NAME=${1:-mariadb}
-IMAGE=${2:-localhost/mariadb}
-POD=${3:-mariadb-pod}
-DB_STORAGE="$HOME"/vsftpd/mariadb
+SERVICE_NAME=${1}
+IMAGE=${2}
+POD=${3}
+DB_STORAGE=${4}
+
+if [ -z "${SERVICE_NAME}" ]; then
+    echo "Install autoload: service name isn't set, but required."
+    exit 1
+fi
+
+if [ -z "${IMAGE}" ]; then
+    echo "Install autoload: image name isn't set, but required."
+    exit 1
+fi
+
+if [ -z "${POD}" ]; then
+    echo "Install autoload: pod name isn't set, but required."
+    exit 1
+fi
+
+if [ -z "${DB_STORAGE}" ]; then
+    echo "Install autoload: folder for writable mount isn't set, but required."
+    exit 1
+fi
 
 echo "Variable values:"
 echo "DB_STORAGE=$DB_STORAGE"
@@ -26,7 +46,7 @@ podman image exists "$IMAGE" ||
     }
 
 # Replace the shell with Podman so signals propagate directly, using 'exec':
-podman run \
+exec podman run \
        --log-level=warn \
        --log-driver=journald \
        --rm \
@@ -39,10 +59,11 @@ podman run \
        --cap-add=DAC_OVERRIDE \
        --cap-add=SETUID \
        --cap-add=SETGID \
-       --secret source=mariadb-root-password,type=mount,uid=0,gid=0,mode=0400 \
-       --secret source=mariadb-password,type=mount,uid=0,gid=0,mode=0400 \
-       --name "$AUTH_DB_CONTAINER" \
+       --secret source=mariadb-root-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-root-password \
+       --secret source=mariadb-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-password \
+       --name "$SERVICE_NAME" \
        -v $DB_STORAGE:/var/lib/mysql:rw \
+       -p 127.0.0.1:3306:3306/tcp \
        --tmpfs /tmp:rw,noexec,nosuid,size=64m \
        --tmpfs /run:rw,noexec,nosuid,size=16m \
        --tmpfs /var/run,rw,noexec,nosuid,size=16m \
