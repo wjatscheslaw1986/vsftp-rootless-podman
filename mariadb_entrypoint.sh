@@ -153,7 +153,9 @@ start_temporary_server() {
 stop_temporary_server() {
     local pid="$TEMP_PID"
 
-    if [[ -n "$pid" ]] || return 0
+    if [[ -z "$pid" ]]; then
+        return 0
+    fi
 
     log "Stopping temporary MariaDB server (PID $pid)."
 
@@ -184,13 +186,13 @@ stop_temporary_server() {
 
     # Do not trust the socket disappearing alone; check both.
     for _ in $(seq 1 100); do
-        if [[ ! -e "$SOCKET" && ! -e "$PIDFILE" ]]; then
+        if [[ ! -e "$SOCKET" && ! -e "$PID" ]]; then
             break
         fi
         sleep 0.1
     done
 
-    if [[ -e "$SOCKET" || -e "$PIDFILE" ]]; then
+    if [[ -e "$SOCKET" || -e "$PID" ]]; then
         die "Temporary MariaDB did not release socket/PID files."
     fi
 
