@@ -8,9 +8,7 @@ fi
 SERVICE_NAME=${1}
 IMAGE=${2}
 POD=${3}
-BASE_DIR="$HOME"/vsftpd
-FTP_STORAGE_PATH=${4:-"$BASE_DIR"/ftp}
-
+DB_STORAGE_PATH=${4}
 
 if [ -z "${SERVICE_NAME}" ]; then
     echo "Install autoload: service name isn't set, but required."
@@ -27,6 +25,12 @@ if [ -z "${POD}" ]; then
     exit 1
 fi
 
+if [ -z "${DB_STORAGE_PATH}" ]; then
+    echo "Install autoload: data dir isn't set, but required."
+    exit 1
+fi
+
+
 SERVICE_PATH=$HOME/.config/systemd/user/podman-$SERVICE_NAME.service
 
 cat > "$SERVICE_PATH" << EOF
@@ -35,7 +39,7 @@ Description=Safe & Secure $SERVICE_NAME Service
 After=network.target
 
 [Service]
-ExecStart=$HOME/.local/bin/"$SERVICE_NAME"_run.sh $SERVICE_NAME $IMAGE $POD $FTP_STORAGE_PATH
+ExecStart=$HOME/.local/bin/"$SERVICE_NAME"_run.sh $SERVICE_NAME $IMAGE $POD $DB_STORAGE_PATH
 #ExecStartPost=
 ExecStop=/usr/bin/podman stop --ignore $SERVICE_NAME
 ExecStopPost=/usr/bin/podman rm --force $SERVICE_NAME
@@ -52,3 +56,4 @@ cp "$SERVICE_NAME"_run.sh $HOME/.local/bin/ && chmod 744 $HOME/.local/bin/"$SERV
 systemctl --user daemon-reload
 systemctl --user enable podman-$SERVICE_NAME.service
 loginctl enable-linger $(whoami)
+

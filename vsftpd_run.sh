@@ -8,11 +8,13 @@ if [ "$(id -u)" = 0 ]; then
   exit 1
 fi
 
-SERVICE_NAME=${1:-vsftpd}
+SERVICE_NAME=${1}
 IMAGE=${2:-localhost/vsftpd}
-POD=${3:-vsftpd-pod}
-BASE_DIR="$HOME"/vsftpd
+POD=${3:-${SERVICE_NAME}}
+BASE_DIR="$HOME"/"${SERVICE_NAME}"
 FTP_STORAGE_PATH=${4:-"$BASE_DIR"/ftp}
+LOGS_DIR=${5:-"$BASE_DIR"/log/vsftpd}
+LOG_LEVEL=${6:-warn}
 
 echo "Variable values:"
 echo "BASE_DIR=$BASE_DIR"
@@ -20,6 +22,8 @@ echo "FTP_STORAGE_PATH=$FTP_STORAGE_PATH"
 echo "POD=$POD"
 echo "IMAGE=$IMAGE"
 echo "SERVICE_NAME=$SERVICE_NAME"
+echo "LOGS_DIR=$LOGS_DIR"
+echo "LOG_LEVEL=$LOG_LEVEL"
 
 podman image exists "$IMAGE" ||
     {
@@ -30,7 +34,7 @@ podman image exists "$IMAGE" ||
 # Replace the shell with Podman so signals propagate directly, using 'exec':
 exec podman run \
     --rm \
-    --log-level=info \
+    --log-level="${LOG_LEVEL}" \
     --log-driver=json-file \
     --read-only \
     --pod "${POD}" \
@@ -39,15 +43,13 @@ exec podman run \
     --cap-add=SETUID \
     --cap-add=SETGID \
     --cap-add=NET_BIND_SERVICE \
-    --secret source=vsftpd-ftps-key,target=vsftpd.key,type=mount,uid=9898,gid=9898,mode=0400 \
-    -p 3221:21/tcp \
-    -p 3220:20/tcp \
+    --secret source=vsftpd-ftps-key,type=mount,uid=9898,gid=9898,mode=0400,target=vsftpd.key \
+    --secret source=mariadb-password,type=mount,uid=9898,gid=9898,mode=0400,target=mariadb-password \
     -p 21100-21110:21100-21110/tcp \
+    -p 990:990/tcp \
     --name "${SERVICE_NAME}" \
-    -v "${FTP_STORAGE_PATH}":/srv/ftp:rw \
-    -v ./cert/vsftpd.crt:/opt/vsftpd/vsftpd.crt:ro \
-    -v ./config/ftp/vsftpd-pam.conf:/etc/pam-mysql.conf:ro \
-    -v ./config/ftp/vsftpd.conf:/etc/vsftpd.conf:ro \
+    -v "${FTP_STORAGE_PATH}":/srv/ftp:rw,U \
+    -v "${LOGS_DIR}":/var/log/vsftpd:rw,U \
     --tmpfs /tmp:rw,noexec,nosuid,size=64m \
     --tmpfs /run:rw,noexec,nosuid,size=16m \
     --tmpfs /var/run,rw,noexec,nosuid,size=16m \

@@ -23,11 +23,14 @@ RUN set -eux; \
     mkdir -p /srv/ftp; \
     mkdir -p /var/run/vsftpd/empty; \
     chown ftpuser:ftpuser /srv/ftp; \
-    chmod 0750 /srv/ftp; \
+    chmod 0755 /srv/ftp; \
     chown root:root /var/run/vsftpd/empty; \
     chmod 0555 /var/run/vsftpd/empty
 
-COPY --chmod=0555 vsftpd_entrypoint.sh /entrypoint.sh
+COPY --chmod=0544 vsftpd_entrypoint.sh /entrypoint.sh
+COPY --chmod=0444 cert/vsftpd.crt /opt/vsftpd/vsftpd.crt
+COPY --chmod=0444 config/ftp/vsftpd-pam.conf /etc/pam.d/vsftpd
+COPY --chmod=0444 config/ftp/vsftpd.conf /etc/vsftpd.conf
 
 EXPOSE 20/tcp
 EXPOSE 21/tcp

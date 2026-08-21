@@ -10,11 +10,9 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*; \
     mkdir -p /run/mysqld /var/lib/mysql; \
     chown mysql:mysql /run/mysqld /var/lib/mysql; \
-    chmod 0750 /run/mysqld /var/lib/mysql
+    chmod 0755 /run/mysqld /var/lib/mysql
 
-COPY mariadb_entrypoint.sh /usr/local/bin/mariadb-entrypoint.sh
-
-RUN chmod 0755 /usr/local/bin/mariadb-entrypoint.sh
+COPY --chmod=0544 mariadb_entrypoint.sh /usr/local/bin/mariadb-entrypoint.sh
 
 EXPOSE 3306
 

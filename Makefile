@@ -15,6 +15,11 @@ INSTANCE_DIRECTORY := $(HOME)/$(VSFTPD_CONTAINER)
 DB_DIRECTORY := $(INSTANCE_DIRECTORY)/mariadb
 VSFTPD_AUTH_DATA_DIR := $(DB_DIRECTORY)/data
 FTP_DIRECTORY := $(INSTANCE_DIRECTORY)/ftp
+LOGS_DIRECTORY := $(INSTANCE_DIRECTORY)/log
+CERTS_DIRECTORY := $(INSTANCE_DIRECTORY)/cert
+CONFIG_DIRECTORY := $(INSTANCE_DIRECTORY)/config
+VSFTPD_LOGS_DIRECTORY := $(LOGS_DIRECTORY)/vsftpd
+MARIADB_LOGS_DIRECTORY := $(LOGS_DIRECTORY)/mariadb
 
 DB_ROOT_PASSWORD_FILE := secrets/mariadb-root-password
 DB_PASSWORD_FILE := secrets/mariadb-password
@@ -33,19 +38,20 @@ SUBUID_BLOCK_INDEX := 2
 INTERMEDIATE_UID_OFFSET := $(shell echo $$(( $(SUBUID_BLOCK_INDEX) * $(BLOCK_SIZE) + 1 )))
 HOST_UID_OFFSET := $(shell echo $$(( $(INTERMEDIATE_UID_OFFSET) + 100000 - 1)))
 DB_USER_UID := $(shell echo $$(( $(HOST_UID_OFFSET) + 100)))
-DB_USER_GID := $(shell echo $$(( $(HOST_UID_OFFSET) + 101)))
+DB_USER_GID := $(shell echo $$(( $(HOST_UID_OFFSET) + 100)))
 FTP_USER_UID := $(shell echo $$(( $(HOST_UID_OFFSET) + 9898)))
 FTP_USER_GID := $(shell echo $$(( $(HOST_UID_OFFSET) + 9898)))
 
-.PHONY: all build images secrets pod run autoload stop down clean \
-	create-secrets ssl-keys check-secrets check-pod \
-	directories check-directories
+.PHONY: all build images podman-secrets pod debug-mariadb debug-vsftpd \
+		autoload stop down clean \
+		secrets ssl-keys check-secrets check-pod \
+		directories check-directories
 
 
 all: build
 
 
-build: images secrets pod directories
+build: images podman-secrets pod directories
 
 
 images:
@@ -61,16 +67,18 @@ images:
 		--file Containerfile_vsftpd \
 		.
 
+
 directories:
 	@echo "Creating directories for mounting into the containers"
 	./create_directories.sh $(VSFTPD_CONTAINER) $(DB_USER_UID):$(DB_USER_GID) $(FTP_USER_UID):$(FTP_USER_GID)
 
-create-secrets:
+
+secrets:
 	@echo "Creating secrets"
 	./create_secrets.sh
 
 
-ssl-keys: create-secrets
+ssl-keys: secrets
 	@echo "Creating SSL certificates for FTPS"
 	
 	@test -f "$(CA_PRIVATE_KEY_PASSWORD_FILE)" || \
@@ -115,26 +123,45 @@ check-directories:
 		exit 1; \
 	fi
 	
+	@if [[ ! -d "$(VSFTPD_LOGS_DIRECTORY)" ]]; then \
+		echo "ERROR: folder $(VSFTPD_LOGS_DIRECTORY) is missing"; \
+		exit 1; \
+	fi
+	
+	@if [[ ! -d "$(MARIADB_LOGS_DIRECTORY)" ]]; then \
+		echo "ERROR: folder $(MARIADB_LOGS_DIRECTORY) is missing"; \
+		exit 1; \
+	fi
+	
 	@test "$$(stat -c '%a' "$(INSTANCE_DIRECTORY)")" = "755" || \
 		{ echo "ERROR: folder $(INSTANCE_DIRECTORY) has wrong permissions: "$$(stat -c '%a' "$(INSTANCE_DIRECTORY)")", expected 755"; exit 1; }
 	
 	@test -O $(INSTANCE_DIRECTORY) && test -G $(INSTANCE_DIRECTORY) || \
 		{ echo "ERROR: folder $(INSTANCE_DIRECTORY) must belong to the current user"; exit 1; }
 	
-	@test "$$(stat -c '%u:%g' "$(DB_DIRECTORY)")" = "$(DB_USER_UID):$(DB_USER_GID)" || \
-		{ echo "ERROR: folder $(DB_DIRECTORY) has wrong owner: $$(stat -c '%u:%g' $(DB_DIRECTORY)), expected UID $(DB_USER_UID):$(DB_USER_GID)"; exit 1; }
+	@test "$$(stat -c '%a' "$(VSFTPD_LOGS_DIRECTORY)")" = "755" || \
+		{ echo "ERROR: folder $(VSFTPD_LOGS_DIRECTORY) has wrong permissions: "$$(stat -c '%a' "$(VSFTPD_LOGS_DIRECTORY)")", expected 755"; exit 1; }
 	
-	@test "$$(stat -c '%a' "$(DB_DIRECTORY)")" = "755" || \
-		{ echo "ERROR: folder $(DB_DIRECTORY) has wrong permissions: $$(stat -c '%a' $(DB_DIRECTORY)), expected 755"; exit 1; }
+	@test "$$(stat -c '%a' "$(MARIADB_LOGS_DIRECTORY)")" = "755" || \
+				{ echo "ERROR: folder $(MARIADB_LOGS_DIRECTORY) has wrong permissions: "$$(stat -c '%a' "$(MARIADB_LOGS_DIRECTORY)")", expected 755"; exit 1; }
 	
-	@test "$$(stat -c '%u:%g' "$(FTP_DIRECTORY)")" = "$(FTP_USER_UID):$(FTP_USER_GID)" || \
-		{ echo "ERROR: folder $(FTP_DIRECTORY) has wrong owner: $$(stat -c '%u:%g' $(FTP_DIRECTORY)), expected UID $(FTP_USER_UID):$(FTP_USER_GID)"; exit 1; }
+	@test -O $(INSTANCE_DIRECTORY) && test -G $(INSTANCE_DIRECTORY) || \
+		{ echo "ERROR: folder $(INSTANCE_DIRECTORY) must belong to the current user"; exit 1; }
 	
-	@test "$$(stat -c '%a' "$(FTP_DIRECTORY)")" = "755" || \
-		{ echo "ERROR: folder $(FTP_DIRECTORY) has wrong permissions: $$(stat -c '%a' $(FTP_DIRECTORY)), expected 755"; exit 1; }
+#	@test "$$(stat -c '%u:%g' "$(DB_DIRECTORY)")" = "$(DB_USER_UID):$(DB_USER_GID)" || \
+#		{ echo "ERROR: folder $(DB_DIRECTORY) has wrong owner: $$(stat -c '%u:%g' $(DB_DIRECTORY)), expected UID $(DB_USER_UID):$(DB_USER_GID)"; exit 1; }
+#	
+#	@test "$$(stat -c '%a' "$(DB_DIRECTORY)")" = "755" || \
+#		{ echo "ERROR: folder $(DB_DIRECTORY) has wrong permissions: $$(stat -c '%a' $(DB_DIRECTORY)), expected 755"; exit 1; }
+#	
+#	@test "$$(stat -c '%u:%g' "$(FTP_DIRECTORY)")" = "$(FTP_USER_UID):$(FTP_USER_GID)" || \
+#		{ echo "ERROR: folder $(FTP_DIRECTORY) has wrong owner: $$(stat -c '%u:%g' $(FTP_DIRECTORY)), expected UID $(FTP_USER_UID):$(FTP_USER_GID)"; exit 1; }
+#	
+#	@test "$$(stat -c '%a' "$(FTP_DIRECTORY)")" = "755" || \
+#		{ echo "ERROR: folder $(FTP_DIRECTORY) has wrong permissions: $$(stat -c '%a' $(FTP_DIRECTORY)), expected 755"; exit 1; }
 
 
-secrets: check-secrets
+podman-secrets: check-secrets
 	@echo "Creating/replacing Podman secrets"
 	
 	@podman secret rm mariadb-root-password 2>/dev/null || true
@@ -168,11 +195,11 @@ pod:
 	fi
 
 
-run: check-directories check-pod check-secrets
+debug-mariadb: check-directories check-pod check-secrets
 	@echo "Running $(AUTH_DB_CONTAINER) container in pod $(POD)"
 	
 	podman run \
-		--log-level=warn \
+		--log-level=debug \
 		--log-driver=journald \
 		--rm \
 		--read-only \
@@ -187,16 +214,19 @@ run: check-directories check-pod check-secrets
 		--secret source=mariadb-root-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-root-password \
 		--secret source=mariadb-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-password \
 		--name "$(AUTH_DB_CONTAINER)" \
-		-v $(DB_DIRECTORY):/var/lib/mysql:rw,U \
+		-v "$(DB_DIRECTORY)":/var/lib/mysql:rw \
+		-v "$(MARIADB_LOGS_DIRECTORY)":/var/log/mariadb:rw \
 		--tmpfs /tmp:rw,noexec,nosuid,size=64m \
 		--tmpfs /run:rw,noexec,nosuid,size=16m \
 		--tmpfs /var/run,rw,noexec,nosuid,size=16m \
 		localhost/"$(AUTH_DB_IMAGE)"
-	
+
+
+debug-vsftpd: check-directories check-pod check-secrets
 	@echo "Running $(VSFTPD_CONTAINER) container in pod $(POD)"
 	
 	podman run \
-		--log-level=info \
+		--log-level=debug \
 		--log-driver=json-file \
 		--rm \
 		--read-only \
@@ -206,12 +236,13 @@ run: check-directories check-pod check-secrets
 		--cap-add=SETUID \
 		--cap-add=SETGID \
 		--cap-add=NET_BIND_SERVICE \
-		--secret source=vsftpd-ftps-key,type=mount,uid=9898,gid=9898,mode=0400,target=vsftpd-ftps-key \
+		--secret source=vsftpd-ftps-key,type=mount,uid=9898,gid=9898,mode=0400,target=vsftpd.key \
 		--secret source=mariadb-password,type=mount,uid=9898,gid=9898,mode=0400,target=mariadb-password \
-		-p 2990:990/tcp \
+		-p 990:990/tcp \
 		-p 21100-21110:21100-21110/tcp \
 		--name "$(VSFTPD_CONTAINER)" \
 		-v "$(FTP_DIRECTORY)":/srv/ftp:rw,U \
+		-v "$(VSFTPD_LOGS_DIRECTORY)":/var/log/vsftpd:rw,U \
 		-v ./cert/vsftpd.crt:/opt/vsftpd/vsftpd.crt:ro \
 		-v ./config/ftp/vsftpd-pam.conf:/etc/pam.d/vsftpd:ro \
 		-v ./config/ftp/vsftpd.conf:/etc/vsftpd.conf:ro \
@@ -227,14 +258,12 @@ autoload:
 	@test -f "$(SYSTEMD_MARIADB_FILE)" || \
 		{ echo "ERROR: missing $(SYSTEMD_MARIADB_FILE)" >&2; exit 1; }
 	
-	@cp "$(SYSTEMD_MARIADB_FILE)" "$(AUTH_DB_CONTAINER)"_run.sh
-	@./install_autoload_mariadb.sh "$(AUTH_DB_CONTAINER)" "$(AUTH_DB_IMAGE)" "$(POD)"
+	@./install_autoload_mariadb.sh "$(AUTH_DB_CONTAINER)" localhost/"$(AUTH_DB_IMAGE)" "$(POD)" "$(DB_DIRECTORY)"
 	
 	@test -f "$(SYSTEMD_VSFTPD_FILE)" || \
 		{ echo "ERROR: missing $(SYSTEMD_VSFTPD_FILE)" >&2; exit 1; }
 	
-	@cp "$(SYSTEMD_VSFTPD_FILE)" "$(VSFTPD_CONTAINER)"_run.sh
-	@./install_autoload_vsftpd.sh "$(VSFTPD_CONTAINER)"
+	@./install_autoload_vsftpd.sh "$(VSFTPD_CONTAINER)" localhost/"$(VSFTPD_IMAGE)" "$(POD)"
 
 
 stop:

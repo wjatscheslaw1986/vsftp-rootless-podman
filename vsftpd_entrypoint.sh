@@ -5,9 +5,9 @@ set -eu
 DB_PASSWORD=$(tr -d '\n\r\t ' < /run/secrets/mariadb-password | tr -d '\0')
 
 cat >/run/pam-mysql.conf <<EOF
-users.host              = mariadb
+users.host              = 127.0.0.1
 users.database          = ftp
-users.db_user           = ftp_admin
+users.db_user           = ftp_auth
 users.db_passwd         = ${DB_PASSWORD}
 users.table             = ftp_users
 users.user_column       = username
