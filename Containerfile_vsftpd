@@ -2,6 +2,7 @@ FROM docker.io/library/debian:13.1-slim
 
 ARG GROUP_ID=9898
 ARG USER_ID=9898
+ARG NOPRIV_USER_ID=9897
 
 RUN set -eux; apt update; \
     apt install -y --no-install-recommends vsftpd libpam-mysql; \
@@ -17,12 +18,22 @@ RUN set -eux; \
         --home-dir /srv/ftp \
         --create-home \
         --shell /usr/sbin/nologin \
-        ftpuser
+        ftpuser; \
+    groupadd \
+        --gid "${NOPRIV_USER_ID}" \
+        vsftpd-nopriv; \
+    useradd \
+        --uid "${NOPRIV_USER_ID}" \
+        --gid "${NOPRIV_USER_ID}" \
+        --home-dir /nonexistent \
+        --no-create-home \
+        --shell /usr/sbin/nologin \
+        vsftpd-nopriv
 
 RUN set -eux; \
     mkdir -p /srv/ftp; \
     mkdir -p /var/run/vsftpd/empty; \
-    chown ftpuser:ftpuser /srv/ftp; \
+    chown root:root /srv/ftp; \
     chmod 0755 /srv/ftp; \
     chown root:root /var/run/vsftpd/empty; \
     chmod 0555 /var/run/vsftpd/empty

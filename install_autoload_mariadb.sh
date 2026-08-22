@@ -33,6 +33,8 @@ fi
 
 SERVICE_PATH=$HOME/.config/systemd/user/podman-$SERVICE_NAME.service
 
+mkdir -p "$HOME/.config/systemd/user" "$HOME/.local/bin"
+
 cat > "$SERVICE_PATH" << EOF
 [Unit]
 Description=Safe & Secure $SERVICE_NAME Service
@@ -42,7 +44,7 @@ After=network.target
 ExecStart=$HOME/.local/bin/"$SERVICE_NAME"_run.sh $SERVICE_NAME $IMAGE $POD $DB_STORAGE_PATH
 #ExecStartPost=
 ExecStop=/usr/bin/podman stop --ignore $SERVICE_NAME
-ExecStopPost=/usr/bin/podman rm --force $SERVICE_NAME
+ExecStopPost=/usr/bin/podman rm --force --ignore $SERVICE_NAME
 Restart=always
 TimeoutStartSec=20
 TimeoutStopSec=5

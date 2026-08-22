@@ -35,6 +35,8 @@ echo "SERVICE_NAME=$SERVICE_NAME"
 echo "FTP_STORAGE=$FTP_STORAGE"
 echo "SERVICE_PATH=$SERVICE_PATH"
 
+mkdir -p "$HOME/.config/systemd/user" "$HOME/.local/bin"
+
 cat > "$SERVICE_PATH" << EOF
 [Unit]
 Description=Safe & Secure $SERVICE_NAME Service
@@ -44,7 +46,7 @@ After=network.target
 ExecStart=$HOME/.local/bin/"$SERVICE_NAME"_run.sh $SERVICE_NAME $IMAGE $POD $FTP_STORAGE $HOME/$SERVICE_NAME/log/vsftpd warn
 #ExecStartPost=
 ExecStop=/usr/bin/podman stop --ignore $SERVICE_NAME
-ExecStopPost=/usr/bin/podman rm --force $SERVICE_NAME
+ExecStopPost=/usr/bin/podman rm --force --ignore $SERVICE_NAME
 Restart=always
 TimeoutStartSec=20
 TimeoutStopSec=5
