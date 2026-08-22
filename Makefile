@@ -70,8 +70,7 @@ images:
 
 directories:
 	@echo "Creating directories for mounting into the containers"
-	./create_directories.sh $(VSFTPD_CONTAINER) $(DB_USER_UID):$(DB_USER_GID) $(FTP_USER_UID):$(FTP_USER_GID)
-
+	./create_directories.sh $(VSFTPD_CONTAINER)
 
 secrets:
 	@echo "Creating secrets"
@@ -161,7 +160,7 @@ check-directories:
 #		{ echo "ERROR: folder $(FTP_DIRECTORY) has wrong permissions: $$(stat -c '%a' $(FTP_DIRECTORY)), expected 755"; exit 1; }
 
 
-podman-secrets: check-secrets
+podman-secrets: ssl-keys check-secrets
 	@echo "Creating/replacing Podman secrets"
 	
 	@podman secret rm mariadb-root-password 2>/dev/null || true
@@ -214,8 +213,8 @@ debug-mariadb: check-directories check-pod check-secrets
 		--secret source=mariadb-root-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-root-password \
 		--secret source=mariadb-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-password \
 		--name "$(AUTH_DB_CONTAINER)" \
-		-v "$(DB_DIRECTORY)":/var/lib/mysql:rw \
-		-v "$(MARIADB_LOGS_DIRECTORY)":/var/log/mariadb:rw \
+		-v "$(DB_DIRECTORY)":/var/lib/mysql:rw,U \
+		-v "$(MARIADB_LOGS_DIRECTORY)":/var/log/mariadb:rw,U \
 		--tmpfs /tmp:rw,noexec,nosuid,size=64m \
 		--tmpfs /run:rw,noexec,nosuid,size=16m \
 		--tmpfs /var/run,rw,noexec,nosuid,size=16m \
@@ -267,12 +266,17 @@ autoload:
 
 
 stop:
-	@echo 'Stopping the pod "$(POD)"'
-	-podman stop "$(POD)"
+	@echo 'Stop the systemd service and stop the pod "$(POD)"'
+	
+	-systemctl --user stop podman-$(AUTH_DB_CONTAINER).service podman-$(VSFTPD_CONTAINER).service
+	
+	-podman pod stop "$(POD)"
 
 
 down:
-	@echo 'Stop and remove the pod "$(POD)"'
+	@echo 'Disable the systemd service and remove the pod "$(POD)"'
+	-systemctl --user stop podman-$(AUTH_DB_CONTAINER).service podman-$(VSFTPD_CONTAINER).service
+	-systemctl --user disable podman-$(AUTH_DB_CONTAINER).service podman-$(VSFTPD_CONTAINER).service
 	-podman pod stop "$(POD)"
 	-podman pod rm "$(POD)"
 

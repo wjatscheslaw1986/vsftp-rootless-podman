@@ -62,7 +62,7 @@ exec podman run \
        --secret source=mariadb-root-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-root-password \
        --secret source=mariadb-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-password \
        --name "$SERVICE_NAME" \
-       -v $DB_STORAGE:/var/lib/mysql:rw \
+       -v "$DB_STORAGE":/var/lib/mysql:rw \
        -p 127.0.0.1:3306:3306/tcp \
        --tmpfs /tmp:rw,noexec,nosuid,size=64m \
        --tmpfs /run:rw,noexec,nosuid,size=16m \

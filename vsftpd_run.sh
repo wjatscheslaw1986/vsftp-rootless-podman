@@ -8,7 +8,13 @@ if [ "$(id -u)" = 0 ]; then
   exit 1
 fi
 
-SERVICE_NAME=${1}
+SERVICE_NAME=${1:-}
+
+if [[ -z "$SERVICE_NAME" ]]; then
+  echo "Service name is required." >&2
+  exit 1
+fi
+
 IMAGE=${2:-localhost/vsftpd}
 POD=${3:-${SERVICE_NAME}}
 BASE_DIR="$HOME"/"${SERVICE_NAME}"

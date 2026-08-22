@@ -84,8 +84,10 @@ setup_directories() {
         "$(dirname "$SOCKET")" \
         "$LOGDIR"
 
+    chmod 0700 \
+        "$DATADIR"
+
     chmod 0755 \
-        "$DATADIR" \
         "$(dirname "$SOCKET")" \
         "$LOGDIR"
 }
@@ -100,9 +102,11 @@ initialize_datadir() {
     log "MariaDB datadir is empty; initializing system tables."
 
     mariadb-install-db \
-        --user="$MYSQL_SYSTEM_USER" \
+        --no-defaults \
         --datadir="$DATADIR" \
         --skip-test-db
+
+    chown -R "$MYSQL_SYSTEM_USER:$MYSQL_SYSTEM_GROUP" "$DATADIR"
 
     log "MariaDB system tables initialized."
 }
@@ -160,25 +164,21 @@ stop_temporary_server() {
     log "Stopping temporary MariaDB server (PID $pid)."
 
     if kill -0 "$pid" 2>/dev/null; then
-        mariadb-admin \
-            --no-defaults \
-            --protocol=socket \
-            --socket="$SOCKET" \
-            shutdown > /dev/null 2>&1 || true
+        kill -TERM "$pid" 2>/dev/null || true
     fi
 
-     # First wait for normal termination.
-    for _ in $(seq 1 100); do
+     # First wait up to 30 seconds for normal termination.
+    for _ in $(seq 1 300); do
         if ! kill -0 "$pid" 2>/dev/null; then
             break
         fi
         sleep 0.1
     done
 
-    # If shutdown did not finish, terminate it explicitly.
+    # If termination did not finish, then kill.
     if kill -0 "$pid" 2>/dev/null; then
-        log "Temporary MariaDB did not exit after shutdown; sending SIGTERM."
-        kill -TERM "$pid" 2>/dev/null || true
+        log "Temporary MariaDB did not exit after SIGTERM; sending SIGKILL."
+        kill -KILL "$pid" 2>/dev/null || true
     fi
 
     # Reap the process.
@@ -197,7 +197,8 @@ stop_temporary_server() {
     fi
 
     TEMP_PID=""
-    rm -f "$SOCKET"
+    rm -f "$SOCKET" "$PID"
+
     log "Temporary MariaDB server stopped completely."
 }
 
