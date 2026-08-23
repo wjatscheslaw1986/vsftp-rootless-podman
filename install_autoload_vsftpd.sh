@@ -8,11 +8,17 @@ fi
 SERVICE_NAME=${1}
 IMAGE=${2}
 POD=${3}
+DB_SERVICE_NAME=${4}
 BASE_DIR="$HOME"/"$SERVICE_NAME"
 FTP_STORAGE="$BASE_DIR"/ftp
 
 if [ -z "${SERVICE_NAME}" ]; then
-    echo "Install autoload: service name isn't set, but required."
+    echo "Install autoload: ftp service name isn't set, but required."
+    exit 1
+fi
+
+if [ -z "${DB_SERVICE_NAME}" ]; then
+    echo "Install autoload: auth service name isn't set, but required."
     exit 1
 fi
 
@@ -40,7 +46,10 @@ mkdir -p "$HOME/.config/systemd/user" "$HOME/.local/bin"
 cat > "$SERVICE_PATH" << EOF
 [Unit]
 Description=Safe & Secure $SERVICE_NAME Service
-After=network.target
+Requires=podman-$DB_SERVICE_NAME.service
+After=podman-$DB_SERVICE_NAME.service network-online.target
+Wants=network-online.target
+PartOf=podman-$DB_SERVICE_NAME.service
 
 [Service]
 ExecStart=$HOME/.local/bin/"$SERVICE_NAME"_run.sh $SERVICE_NAME $IMAGE $POD $FTP_STORAGE $HOME/$SERVICE_NAME/log/vsftpd warn
@@ -48,8 +57,9 @@ ExecStart=$HOME/.local/bin/"$SERVICE_NAME"_run.sh $SERVICE_NAME $IMAGE $POD $FTP
 ExecStop=/usr/bin/podman stop --ignore $SERVICE_NAME
 ExecStopPost=/usr/bin/podman rm --force --ignore $SERVICE_NAME
 Restart=always
-TimeoutStartSec=20
-TimeoutStopSec=5
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=30
 
 [Install]
 WantedBy=default.target
