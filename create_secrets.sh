@@ -3,6 +3,26 @@ set -euo pipefail
 
 umask 077
 mkdir -p secrets
+
+if [[ -e secrets/mariadb-root-password &&
+      -e secrets/mariadb-password &&
+      -e secrets/ca-password ]]; then
+    while true; do
+        read -p "Secrets already exist; do you want to overwrite them? (N/y): " overwrite
+        overwrite="${overwrite,,}"
+        case "$overwrite" in
+        ""|n|no)
+            echo "Using existing secrets"
+            exit 0
+            ;;
+        y|yes)
+            echo "Rotating secrets"
+            break
+            ;;
+        esac
+    done
+fi
+
 find secrets/ -type f ! -name .gitkeep -delete
 
 read -r -s -p "Enter MariaDB root password: " root_pass
