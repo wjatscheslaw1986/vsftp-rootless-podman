@@ -6,18 +6,15 @@ AUTH_DB_IMAGE := mariadb
 VSFTPD_IMAGE := vsftpd
 
 INSTANCE_ID := 1
-POD := $(VSFTPD_IMAGE)-$(INSTANCE_ID)
+POD := $(VSFTPD_IMAGE)-pod-$(INSTANCE_ID)
 AUTH_DB_CONTAINER := $(AUTH_DB_IMAGE)-$(INSTANCE_ID)
 VSFTPD_CONTAINER := $(VSFTPD_IMAGE)-$(INSTANCE_ID)
 
 INSTANCE_DIRECTORY := $(HOME)/$(VSFTPD_CONTAINER)
 
 DB_DIRECTORY := $(INSTANCE_DIRECTORY)/mariadb
-VSFTPD_AUTH_DATA_DIR := $(DB_DIRECTORY)/data
 FTP_DIRECTORY := $(INSTANCE_DIRECTORY)/ftp
 LOGS_DIRECTORY := $(INSTANCE_DIRECTORY)/log
-CERTS_DIRECTORY := $(INSTANCE_DIRECTORY)/cert
-CONFIG_DIRECTORY := $(INSTANCE_DIRECTORY)/config
 VSFTPD_LOGS_DIRECTORY := $(LOGS_DIRECTORY)/vsftpd
 MARIADB_LOGS_DIRECTORY := $(LOGS_DIRECTORY)/mariadb
 
@@ -189,6 +186,9 @@ pod:
 		echo "Creating pod $(POD)"; \
 		podman pod create \
 			--name "$(POD)" \
+			--publish 21100-21110:21100-21110/tcp \
+			--publish 990:990/tcp \
+			--publish 127.0.0.1:3306:3306/tcp \
 			--uidmap=0:$(INTERMEDIATE_UID_OFFSET):$(BLOCK_SIZE) \
 			--gidmap=0:$(INTERMEDIATE_UID_OFFSET):$(BLOCK_SIZE); \
 	fi
@@ -237,8 +237,6 @@ debug-vsftpd: check-directories check-pod check-secrets
 		--cap-add=NET_BIND_SERVICE \
 		--secret source=vsftpd-ftps-key,type=mount,uid=9898,gid=9898,mode=0400,target=vsftpd.key \
 		--secret source=mariadb-password,type=mount,uid=9898,gid=9898,mode=0400,target=mariadb-password \
-		-p 990:990/tcp \
-		-p 21100-21110:21100-21110/tcp \
 		--name "$(VSFTPD_CONTAINER)" \
 		-v "$(FTP_DIRECTORY)":/srv/ftp:rw,U \
 		-v "$(VSFTPD_LOGS_DIRECTORY)":/var/log/vsftpd:rw,U \
@@ -257,12 +255,12 @@ autoload:
 	@test -f "$(SYSTEMD_MARIADB_FILE)" || \
 		{ echo "ERROR: missing $(SYSTEMD_MARIADB_FILE)" >&2; exit 1; }
 	
-	@./install_autoload_mariadb.sh "$(AUTH_DB_CONTAINER)" localhost/"$(AUTH_DB_IMAGE)" "$(POD)" "$(DB_DIRECTORY)"
+	@./install_autoload_mariadb.sh "$(AUTH_DB_CONTAINER)" localhost/"$(AUTH_DB_IMAGE)" "$(POD)" "$(DB_DIRECTORY)" "$(MARIADB_LOGS_DIRECTORY)"
 	
 	@test -f "$(SYSTEMD_VSFTPD_FILE)" || \
 		{ echo "ERROR: missing $(SYSTEMD_VSFTPD_FILE)" >&2; exit 1; }
 	
-	@./install_autoload_vsftpd.sh "$(VSFTPD_CONTAINER)" localhost/"$(VSFTPD_IMAGE)" "$(POD)"
+	@./install_autoload_vsftpd.sh "$(VSFTPD_CONTAINER)" localhost/"$(VSFTPD_IMAGE)" "$(POD)" "$(AUTH_DB_CONTAINER)"
 
 
 stop:
