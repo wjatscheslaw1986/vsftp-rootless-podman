@@ -124,7 +124,6 @@ start_temporary_server() {
         --socket="$SOCKET" \
         --skip-networking \
         --pid-file="$PID" \
-        --log-error="$INIT_LOG" \
         &
 
     TEMP_PID=$!
@@ -155,7 +154,8 @@ start_temporary_server() {
 
 
 stop_temporary_server() {
-    local pid="$TEMP_PID"
+    local pid="${TEMP_PID:-}"
+    local root_password
 
     if [[ -z "$pid" ]]; then
         return 0
@@ -163,11 +163,22 @@ stop_temporary_server() {
 
     log "Stopping temporary MariaDB server (PID $pid)."
 
-    if kill -0 "$pid" 2>/dev/null; then
-        kill -TERM "$pid" 2>/dev/null || true
+    # Prefer MariaDB's own clean shutdown mechanism.
+    if [[ -S "$SOCKET" ]]; then
+        root_password="$(read_secret "$MARIADB_ROOT_PASSWORD_FILE")"
+
+        mariadb-admin \
+            --no-defaults \
+            --protocol=socket \
+            --socket="$SOCKET" \
+            --user=root \
+            --password="$root_password" \
+            shutdown >/dev/null 2>&1 || true
+
+        unset root_password
     fi
 
-     # First wait up to 30 seconds for normal termination.
+    # Wait for the process to disappear.
     for _ in $(seq 1 300); do
         if ! kill -0 "$pid" 2>/dev/null; then
             break
@@ -175,16 +186,29 @@ stop_temporary_server() {
         sleep 0.1
     done
 
-    # If termination did not finish, then kill.
+    # Last resort.
     if kill -0 "$pid" 2>/dev/null; then
-        log "Temporary MariaDB did not exit after SIGTERM; sending SIGKILL."
+        log "MariaDB did not stop cleanly; sending SIGTERM."
+        kill -TERM "$pid" 2>/dev/null || true
+
+        for _ in $(seq 1 100); do
+            if ! kill -0 "$pid" 2>/dev/null; then
+                break
+            fi
+            sleep 0.1
+        done
+    fi
+
+    # Hard stop if absolutely necessary.
+    if kill -0 "$pid" 2>/dev/null; then
+        log "MariaDB still running; sending SIGKILL."
         kill -KILL "$pid" 2>/dev/null || true
     fi
 
-    # Reap the process.
-    wait "$pid" 2>/dev/null || true
+    # Do not use wait "$pid" here.
+    # The observed container behavior is precisely that this can block
+    # even after kill -0 reports that the PID has disappeared.
 
-    # Do not trust the socket disappearing alone; check both.
     for _ in $(seq 1 100); do
         if [[ ! -e "$SOCKET" && ! -e "$PID" ]]; then
             break
@@ -193,7 +217,8 @@ stop_temporary_server() {
     done
 
     if [[ -e "$SOCKET" || -e "$PID" ]]; then
-        die "Temporary MariaDB did not release socket/PID files."
+        log "ERROR: MariaDB did not release socket/PID files."
+        return 1
     fi
 
     TEMP_PID=""
@@ -202,6 +227,11 @@ stop_temporary_server() {
     log "Temporary MariaDB server stopped completely."
 }
 
+prepare_log_file() {
+    touch "$LOGDIR/mariadb.log"
+    chown "$MYSQL_SYSTEM_USER:$MYSQL_SYSTEM_GROUP" "$LOGDIR/mariadb.log"
+    chmod 0640 "$LOGDIR/mariadb.log"
+}
 
 configure_database() {
     local root_password
@@ -303,6 +333,7 @@ main() {
     require_file "$MYSQL_PASSWORD_FILE"
 
     setup_directories
+    prepare_log_file
     initialize_datadir
     initialize_container
 
@@ -311,7 +342,7 @@ main() {
     exec mariadbd \
         --datadir="$DATADIR" \
         --user="$MYSQL_SYSTEM_USER" \
-        --bind-address=0.0.0.0 \
+        --bind-address=127.0.0.1 \
         --port=3306 \
         --pid-file="$PID" \
         --log-error="$LOGDIR/mariadb.log"
