@@ -46,8 +46,9 @@ ExecStart=$HOME/.local/bin/"$SERVICE_NAME"_run.sh $SERVICE_NAME $IMAGE $POD $DB_
 ExecStop=/usr/bin/podman stop --ignore $SERVICE_NAME
 ExecStopPost=/usr/bin/podman rm --force --ignore $SERVICE_NAME
 Restart=always
-TimeoutStartSec=20
-TimeoutStopSec=5
+TimeoutStartSec=180
+TimeoutStopSec=30
+RestartSec=5
 
 [Install]
 WantedBy=default.target
