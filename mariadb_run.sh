@@ -12,6 +12,7 @@ SERVICE_NAME=${1}
 IMAGE=${2}
 POD=${3}
 DB_STORAGE=${4}
+LOGS_DIR=${5}
 
 if [ -z "${SERVICE_NAME}" ]; then
     echo "Install autoload: service name isn't set, but required."
@@ -29,7 +30,12 @@ if [ -z "${POD}" ]; then
 fi
 
 if [ -z "${DB_STORAGE}" ]; then
-    echo "Install autoload: folder for writable mount isn't set, but required."
+    echo "Install autoload: data dir for writable mount isn't set, but required."
+    exit 1
+fi
+
+if [ -z "${LOGS_DIR}" ]; then
+    echo "Install autoload: logs dir for writable mount isn't set, but required."
     exit 1
 fi
 
@@ -38,6 +44,7 @@ echo "DB_STORAGE=$DB_STORAGE"
 echo "POD=$POD"
 echo "IMAGE=$IMAGE"
 echo "SERVICE_NAME=$SERVICE_NAME"
+echo "LOGS_DIR=$LOGS_DIR"
 
 podman image exists "$IMAGE" ||
     {
@@ -62,8 +69,8 @@ exec podman run \
        --secret source=mariadb-root-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-root-password \
        --secret source=mariadb-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-password \
        --name "$SERVICE_NAME" \
+       -v "$LOGS_DIR":/var/log/mariadb:rw \
        -v "$DB_STORAGE":/var/lib/mysql:rw \
-       -p 127.0.0.1:3306:3306/tcp \
        --tmpfs /tmp:rw,noexec,nosuid,size=64m \
        --tmpfs /run:rw,noexec,nosuid,size=16m \
        --tmpfs /var/run,rw,noexec,nosuid,size=16m \
