@@ -67,7 +67,8 @@ images:
 
 directories:
 	@echo "Creating directories for mounting into the containers"
-	./create_directories.sh $(VSFTPD_CONTAINER)
+	./create_directories.sh "$(VSFTPD_CONTAINER)" "$(DB_USER_UID):$(DB_USER_GID)" "$(FTP_USER_UID):$(FTP_USER_GID)"
+
 
 secrets:
 	@echo "Creating secrets"
@@ -146,13 +147,13 @@ check-directories:
 	
 #	@test "$$(stat -c '%u:%g' "$(DB_DIRECTORY)")" = "$(DB_USER_UID):$(DB_USER_GID)" || \
 #		{ echo "ERROR: folder $(DB_DIRECTORY) has wrong owner: $$(stat -c '%u:%g' $(DB_DIRECTORY)), expected UID $(DB_USER_UID):$(DB_USER_GID)"; exit 1; }
-#	
+	
 #	@test "$$(stat -c '%a' "$(DB_DIRECTORY)")" = "755" || \
 #		{ echo "ERROR: folder $(DB_DIRECTORY) has wrong permissions: $$(stat -c '%a' $(DB_DIRECTORY)), expected 755"; exit 1; }
-#	
+	
 #	@test "$$(stat -c '%u:%g' "$(FTP_DIRECTORY)")" = "$(FTP_USER_UID):$(FTP_USER_GID)" || \
 #		{ echo "ERROR: folder $(FTP_DIRECTORY) has wrong owner: $$(stat -c '%u:%g' $(FTP_DIRECTORY)), expected UID $(FTP_USER_UID):$(FTP_USER_GID)"; exit 1; }
-#	
+	
 #	@test "$$(stat -c '%a' "$(FTP_DIRECTORY)")" = "755" || \
 #		{ echo "ERROR: folder $(FTP_DIRECTORY) has wrong permissions: $$(stat -c '%a' $(FTP_DIRECTORY)), expected 755"; exit 1; }
 
@@ -188,7 +189,6 @@ pod:
 			--name "$(POD)" \
 			--publish 21100-21110:21100-21110/tcp \
 			--publish 990:990/tcp \
-			--publish 127.0.0.1:3306:3306/tcp \
 			--uidmap=0:$(INTERMEDIATE_UID_OFFSET):$(BLOCK_SIZE) \
 			--gidmap=0:$(INTERMEDIATE_UID_OFFSET):$(BLOCK_SIZE); \
 	fi
@@ -200,12 +200,13 @@ debug-mariadb: check-directories check-pod check-secrets
 	podman run \
 		--log-level=debug \
 		--log-driver=journald \
-		--rm \
+		--rm -it \
 		--read-only \
 		--pod "$(POD)" \
 		--security-opt=no-new-privileges \
 		--cap-drop=ALL \
 		--cap-add=CHOWN \
+		--cap-add=NET_BIND_SERVICE \
 		--cap-add=FOWNER \
 		--cap-add=DAC_OVERRIDE \
 		--cap-add=SETUID \
@@ -213,11 +214,11 @@ debug-mariadb: check-directories check-pod check-secrets
 		--secret source=mariadb-root-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-root-password \
 		--secret source=mariadb-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-password \
 		--name "$(AUTH_DB_CONTAINER)" \
-		-v "$(DB_DIRECTORY)":/var/lib/mysql:rw,U \
-		-v "$(MARIADB_LOGS_DIRECTORY)":/var/log/mariadb:rw,U \
+		-v "$(DB_DIRECTORY)":/var/lib/mysql:rw \
+		-v "$(MARIADB_LOGS_DIRECTORY)":/var/log/mariadb:rw \
 		--tmpfs /tmp:rw,noexec,nosuid,size=64m \
 		--tmpfs /run:rw,noexec,nosuid,size=16m \
-		--tmpfs /var/run,rw,noexec,nosuid,size=16m \
+		--tmpfs /var/run:rw,noexec,nosuid,size=16m \
 		localhost/"$(AUTH_DB_IMAGE)"
 
 
@@ -227,7 +228,7 @@ debug-vsftpd: check-directories check-pod check-secrets
 	podman run \
 		--log-level=debug \
 		--log-driver=json-file \
-		--rm \
+		--rm -it \
 		--read-only \
 		--pod "$(POD)" \
 		--security-opt=no-new-privileges \
@@ -235,17 +236,14 @@ debug-vsftpd: check-directories check-pod check-secrets
 		--cap-add=SETUID \
 		--cap-add=SETGID \
 		--cap-add=NET_BIND_SERVICE \
-		--secret source=vsftpd-ftps-key,type=mount,uid=9898,gid=9898,mode=0400,target=vsftpd.key \
-		--secret source=mariadb-password,type=mount,uid=9898,gid=9898,mode=0400,target=mariadb-password \
+		--secret source=vsftpd-ftps-key,type=mount,uid=0,gid=0,mode=0400,target=vsftpd.key \
+		--secret source=mariadb-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-password \
 		--name "$(VSFTPD_CONTAINER)" \
-		-v "$(FTP_DIRECTORY)":/srv/ftp:rw,U \
-		-v "$(VSFTPD_LOGS_DIRECTORY)":/var/log/vsftpd:rw,U \
-		-v ./cert/vsftpd.crt:/opt/vsftpd/vsftpd.crt:ro \
-		-v ./config/ftp/vsftpd-pam.conf:/etc/pam.d/vsftpd:ro \
-		-v ./config/ftp/vsftpd.conf:/etc/vsftpd.conf:ro \
+		-v "$(FTP_DIRECTORY)":/srv/ftp:rw \
+		-v "$(VSFTPD_LOGS_DIRECTORY)":/var/log/vsftpd:rw \
 		--tmpfs /tmp:rw,noexec,nosuid,size=64m \
+		--tmpfs /var/run:rw,noexec,nosuid,size=16m \
 		--tmpfs /run:rw,noexec,nosuid,size=16m \
-		--tmpfs /var/run,rw,noexec,nosuid,size=16m \
 		localhost/"$(VSFTPD_IMAGE)"
 
 
