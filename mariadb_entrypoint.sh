@@ -179,7 +179,7 @@ stop_temporary_server() {
     fi
 
     # Wait for the process to disappear.
-    for _ in $(seq 1 300); do
+    for _ in $(seq 1 150); do
         if ! kill -0 "$pid" 2>/dev/null; then
             break
         fi
@@ -205,9 +205,7 @@ stop_temporary_server() {
         kill -KILL "$pid" 2>/dev/null || true
     fi
 
-    # Do not use wait "$pid" here.
-    # The observed container behavior is precisely that this can block
-    # even after kill -0 reports that the PID has disappeared.
+    wait "$pid" 2>/dev/null || true
 
     for _ in $(seq 1 100); do
         if [[ ! -e "$SOCKET" && ! -e "$PID" ]]; then
@@ -342,7 +340,7 @@ main() {
     exec mariadbd \
         --datadir="$DATADIR" \
         --user="$MYSQL_SYSTEM_USER" \
-        --bind-address=127.0.0.1 \
+        --bind-address=0.0.0.0 \
         --port=3306 \
         --pid-file="$PID" \
         --log-error="$LOGDIR/mariadb.log"
