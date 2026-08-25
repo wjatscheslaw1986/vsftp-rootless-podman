@@ -3,3 +3,4 @@ secrets/*
 cert/*
 !cert/.gitkeep
 llm.txt
+*kate-swp
