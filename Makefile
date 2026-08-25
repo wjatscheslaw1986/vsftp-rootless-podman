@@ -44,11 +44,10 @@ FTP_USER_GID := $(shell echo $$(( $(HOST_UID_OFFSET) + 9898)))
 		secrets ssl-keys check-secrets check-pod \
 		directories check-directories
 
-
 all: build
 
 
-build: images podman-secrets pod directories
+build: ssl-keys images podman-secrets pod directories
 
 
 images:
@@ -67,7 +66,7 @@ images:
 
 directories:
 	@echo "Creating directories for mounting into the containers"
-	./create_directories.sh "$(VSFTPD_CONTAINER)" "$(DB_USER_UID):$(DB_USER_GID)" "$(FTP_USER_UID):$(FTP_USER_GID)"
+	./create_directories.sh "$(VSFTPD_CONTAINER)" "$(DB_USER_UID):$(DB_USER_GID)" "$(FTP_USER_UID):$(FTP_USER_GID)" "$(HOST_UID_OFFSET):$(HOST_UID_OFFSET)"
 
 
 secrets:
@@ -77,10 +76,6 @@ secrets:
 
 ssl-keys: secrets
 	@echo "Creating SSL certificates for FTPS"
-	
-	@test -f "$(CA_PRIVATE_KEY_PASSWORD_FILE)" || \
-		{ echo "ERROR: missing $(CA_PRIVATE_KEY_PASSWORD_FILE)" >&2; exit 1; }
-	
 	./generate_certificates.sh
 
 
@@ -158,7 +153,7 @@ check-directories:
 #		{ echo "ERROR: folder $(FTP_DIRECTORY) has wrong permissions: $$(stat -c '%a' $(FTP_DIRECTORY)), expected 755"; exit 1; }
 
 
-podman-secrets: ssl-keys check-secrets
+podman-secrets: check-secrets
 	@echo "Creating/replacing Podman secrets"
 	
 	@podman secret rm mariadb-root-password 2>/dev/null || true
@@ -267,17 +262,27 @@ stop:
 	-systemctl --user stop podman-$(AUTH_DB_CONTAINER).service podman-$(VSFTPD_CONTAINER).service
 	
 	-podman pod stop "$(POD)"
+	-podman container stop "$(VSFTPD_CONTAINER)"
+	-podman container stop "$(AUTH_DB_CONTAINER)"
 
 
-down:
+down: stop
 	@echo 'Disable the systemd service and remove the pod "$(POD)"'
 	-systemctl --user stop podman-$(AUTH_DB_CONTAINER).service podman-$(VSFTPD_CONTAINER).service
 	-systemctl --user disable podman-$(AUTH_DB_CONTAINER).service podman-$(VSFTPD_CONTAINER).service
 	-podman pod stop "$(POD)"
+	-podman container rm "$(VSFTPD_CONTAINER)"
+	-podman container rm "$(AUTH_DB_CONTAINER)"
 	-podman pod rm "$(POD)"
+
 
 
 clean: down
 	@echo 'Removing images "$(AUTH_DB_IMAGE)" and "$(VSFTPD_IMAGE)"'
 	-podman rmi "$(AUTH_DB_IMAGE)"
 	-podman rmi "$(VSFTPD_IMAGE)"
+	-podman secret rm mariadb-root-password
+	-podman secret rm vsftpd-ftps-key
+	-podman secret rm mariadb-password
+
+
