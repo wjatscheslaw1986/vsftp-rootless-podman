@@ -11,13 +11,15 @@ if [[ ! -f "$CA_PASSWORD_FILE" ]]; then
     exit 1
 fi
 
+rm -f secrets/keys/ca.key cert/ca.crt secrets/keys/vsftpd.key cert/vsftpd.csr cert/vsftpd.crt
+
 echo
 echo "Generating keys and certificates..."
 openssl genrsa -aes256 -out secrets/keys/ca.key -passout "file:${CA_PASSWORD_FILE}" 4096
 chmod 600 secrets/keys/ca.key
 openssl req -config config/ssl/ca.conf -x509 -new -key secrets/keys/ca.key -days 3650 -out cert/ca.crt -passin "file:${CA_PASSWORD_FILE}"
 
-openssl genrsa -out secrets/keys/vsftpd.key 4096
+openssl genrsa -traditional -out secrets/keys/vsftpd.key 4096
 chmod 600 secrets/keys/vsftpd.key
 openssl req -new -config config/ssl/vsftpd-cert.conf -key secrets/keys/vsftpd.key -out cert/vsftpd.csr
 openssl x509 -req -CA cert/ca.crt -CAkey secrets/keys/ca.key -in cert/vsftpd.csr -out cert/vsftpd.crt -passin "file:${CA_PASSWORD_FILE}" -days 3649 -sha256 -extfile config/ssl/vsftpd-cert.conf -extensions v3_server
