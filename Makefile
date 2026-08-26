@@ -211,9 +211,9 @@ debug-mariadb: check-directories check-pod check-secrets
 		--name "$(AUTH_DB_CONTAINER)" \
 		-v "$(DB_DIRECTORY)":/var/lib/mysql:rw \
 		-v "$(MARIADB_LOGS_DIRECTORY)":/var/log/mariadb:rw \
-		--tmpfs /tmp:rw,noexec,nosuid,size=64m \
-		--tmpfs /run:rw,noexec,nosuid,size=16m \
-		--tmpfs /var/run:rw,noexec,nosuid,size=16m \
+		--tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+		--tmpfs /run:rw,noexec,nosuid,nodev,size=16m \
+		--tmpfs /var/run:rw,noexec,nosuid,nodev,size=16m \
 		localhost/"$(AUTH_DB_IMAGE)"
 
 
@@ -227,18 +227,21 @@ debug-vsftpd: check-directories check-pod check-secrets
 		--read-only \
 		--pod "$(POD)" \
 		--security-opt=no-new-privileges \
+		--read-only \
 		--cap-drop=ALL \
 		--cap-add=SETUID \
 		--cap-add=SETGID \
 		--cap-add=NET_BIND_SERVICE \
+		--cap-add=SYS_CHROOT \
 		--secret source=vsftpd-ftps-key,type=mount,uid=0,gid=0,mode=0400,target=vsftpd.key \
 		--secret source=mariadb-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-password \
 		--name "$(VSFTPD_CONTAINER)" \
 		-v "$(FTP_DIRECTORY)":/srv/ftp:rw \
 		-v "$(VSFTPD_LOGS_DIRECTORY)":/var/log/vsftpd:rw \
-		--tmpfs /tmp:rw,noexec,nosuid,size=64m \
-		--tmpfs /var/run:rw,noexec,nosuid,size=16m \
-		--tmpfs /run:rw,noexec,nosuid,size=16m \
+		--tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+		--tmpfs /run:rw,noexec,nosuid,nodev,size=16m \
+		--tmpfs /var/run/vsftpd:rw,noexec,nosuid,nodev,size=16m \
+		--tmpfs /var/run/vsftpd/empty:ro,size=1m \
 		localhost/"$(VSFTPD_IMAGE)"
 
 
