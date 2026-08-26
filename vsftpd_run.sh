@@ -49,13 +49,15 @@ exec podman run \
     --cap-add=SETUID \
     --cap-add=SETGID \
     --cap-add=NET_BIND_SERVICE \
+    --cap-add=SYS_CHROOT \
     --secret source=vsftpd-ftps-key,type=mount,uid=0,gid=0,mode=0400,target=vsftpd.key \
     --secret source=mariadb-password,type=mount,uid=0,gid=0,mode=0400,target=mariadb-password \
     --name "${SERVICE_NAME}" \
     -v "${FTP_STORAGE_PATH}":/srv/ftp:rw \
     -v "${LOGS_DIR}":/var/log/vsftpd:rw \
-    --tmpfs /tmp:rw,noexec,nosuid,size=64m \
-    --tmpfs /run:rw,noexec,nosuid,size=16m \
-    --tmpfs /var/run,rw,noexec,nosuid,size=16m \
+    --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+    --tmpfs /run:rw,noexec,nosuid,nodev,size=16m \
+    --tmpfs /var/run/vsftpd:rw,noexec,nosuid,nodev,size=16m \
+    --tmpfs /var/run/vsftpd/empty:ro,size=1m \
     "$IMAGE"
 
