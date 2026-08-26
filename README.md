@@ -35,3 +35,7 @@ Both containers share the pod network namespace. MariaDB therefore listens only 
 - Login to container shell: `podman exec -i container-name /bin/bash`
 - Login to MariaDB CLI: `mysql -D ftp -p`
 - Execute the query: `INSERT INTO ftp_users(username, password_hash) VALUES ('new_ftp_username', paste ./hash_password.sh output here);
+- In the host's `ftp` folder, create the read-only (i.e. 0555) container-root-owned folder with the name of the user's login, and then create another folder `data` inside of it. The `data` folder must be owned by the `ftpuser` (9898 in the `Containerfile_vsftpd`). You may get the host-mapped ownership UID and GID values for your case, in the output of `make build` or `make directories` receipies.
+
+###How to verify the TLS certificate
+- If your FTP server's passive IP address (the one clients use to discover it on the Internet) is assigned a hostname (in `/etc/hosts`, for example), then you may fully validate the TLS certificate like this: `openssl s_client -connect 127.0.0.1:990 -servername ftp.your-ftp-host.com -CAfile cert/ca.crt`
