@@ -32,11 +32,8 @@ RUN set -eux; \
 
 RUN set -eux; \
     mkdir -p /srv/ftp; \
-    mkdir -p /empty; \
     chown root:root /srv/ftp; \
-    chmod 0755 /srv/ftp; \
-    chown root:root /empty; \
-    chmod 0555 /empty
+    chmod 0755 /srv/ftp;
 
 COPY --chmod=0544 vsftpd_entrypoint.sh /entrypoint.sh
 COPY --chmod=0444 cert/vsftpd.crt /opt/vsftpd/vsftpd.crt
