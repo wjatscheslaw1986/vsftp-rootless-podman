@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.DEFAULT_GOAL := build
+.DEFAULT_GOAL := install
 
 AUTH_DB_IMAGE := mariadb
 VSFTPD_IMAGE := vsftpd
@@ -44,7 +44,7 @@ FTP_USER_GID := $(shell echo $$(( $(HOST_UID_OFFSET) + 9898)))
 		secrets ssl-keys check-secrets check-pod \
 		directories check-directories
 
-all: build
+install: build autoload
 
 
 build: ssl-keys images podman-secrets pod directories

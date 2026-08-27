@@ -5,6 +5,8 @@ ARG USER_ID=9898
 ARG NOPRIV_USER_ID=9897
 ARG PASV_ADDRESS=127.0.0.1
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 RUN set -eux; apt update; \
     apt install -y --no-install-recommends vsftpd libpam-mysql; \
     rm -rf /var/lib/apt/lists/*
@@ -41,7 +43,7 @@ COPY --chmod=0444 cert/vsftpd.crt /opt/vsftpd/vsftpd.crt
 COPY --chmod=0444 config/ftp/vsftpd-pam.conf /etc/pam.d/vsftpd
 COPY --chmod=0444 config/ftp/vsftpd.conf /etc/vsftpd.conf
 
-RUN sed -i "s|^pasv_address=.*|pasv_address=${PASV_ADDRESS}|" /etc/vsftpd.conf; grep -E "^pasv_addre" /etc/vsftpd.conf
+RUN set -eux; sed -i "s|^pasv_address=.*|pasv_address=${PASV_ADDRESS}|" /etc/vsftpd.conf; grep -E "^pasv_addre" /etc/vsftpd.conf
 
 EXPOSE 990/tcp
 EXPOSE 21100-21110/tcp
