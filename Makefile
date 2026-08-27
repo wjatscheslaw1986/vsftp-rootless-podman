@@ -61,7 +61,7 @@ images:
 	podman build \
 		--tag $(VSFTPD_IMAGE) \
 		--file Containerfile_vsftpd \
-		--build-arg PASV_ADDRESS=$$(ip addr show $$(ip -4 route | grep -E "^default" | head -n 1 | awk '{print $$5}') | grep inet | head -n 1 | awk '{print $$2}' | cut -d/ -f1)
+		--build-arg PASV_ADDRESS=$$(ip addr show $$(ip -4 route | grep -E "^default" | head -n 1 | awk '{print $$5}') | grep inet | head -n 1 | awk '{print $$2}' | cut -d/ -f1) \
 		.
 
 
