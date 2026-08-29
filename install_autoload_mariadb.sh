@@ -10,6 +10,7 @@ IMAGE=${2}
 POD=${3}
 DB_STORAGE_PATH=${4}
 LOGS_DIR=${5}
+TEMPLATE_FILE=mariadb_run.sh
 
 if [ -z "${SERVICE_NAME}" ]; then
     echo "Install autoload: service name isn't set, but required."
@@ -36,7 +37,7 @@ if [ -z "${LOGS_DIR}" ]; then
 	exit 1
 fi
 
-if [ ! -f mariadb_run.sh ]; then
+if [ ! -f "${TEMPLATE_FILE}" ]; then
 	echo "Please run this script from inside of the git repository folder. The file mariadb_run.sh hasn't been found. Aborting"
 	exit 1
 fi
@@ -65,8 +66,8 @@ RestartSec=5
 WantedBy=default.target
 EOF
 
-cp mariadb_run.sh $HOME/.local/bin/"$SERVICE_NAME"_run.sh && chmod 744 $HOME/.local/bin/"$SERVICE_NAME"_run.sh
+cp "$TEMPLATE_FILE" $HOME/.local/bin/"$SERVICE_NAME"_run.sh && chmod 744 $HOME/.local/bin/"$SERVICE_NAME"_run.sh
 
 systemctl --user daemon-reload
 systemctl --user enable podman-$SERVICE_NAME.service
-#loginctl enable-linger $(whoami)
+loginctl enable-linger $(whoami) || true
