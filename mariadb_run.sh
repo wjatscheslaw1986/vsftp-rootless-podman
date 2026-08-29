@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -Eeuo pipefail
+set -euo pipefail
 
 # check a user isn't root
 if [ "$(id -u)" = 0 ]; then

@@ -247,7 +247,7 @@ debug-vsftpd: check-directories check-pod check-secrets
 
 
 autoload:
-	@echo "Installing user's systemd services for autoload"
+	@echo "Installing user's systemd services for autoload..."
 	
 	@test -f "$(SYSTEMD_MARIADB_FILE)" || \
 		{ echo "ERROR: missing $(SYSTEMD_MARIADB_FILE)" >&2; exit 1; }
@@ -258,6 +258,8 @@ autoload:
 		{ echo "ERROR: missing $(SYSTEMD_VSFTPD_FILE)" >&2; exit 1; }
 	
 	@./install_autoload_vsftpd.sh "$(VSFTPD_CONTAINER)" localhost/"$(VSFTPD_IMAGE)" "$(POD)" "$(AUTH_DB_CONTAINER)"
+	
+	@echo "Done."
 
 
 stop:

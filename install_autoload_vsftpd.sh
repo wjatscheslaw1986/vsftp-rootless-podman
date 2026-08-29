@@ -32,14 +32,19 @@ if [ -z "${POD}" ]; then
     exit 1
 fi
 
+if [ ! -f vsftpd_run.sh ]; then
+    echo "Please run this script from inside of the git repository folder. The file vsftpd_run.sh hasn't been found. Aborting"
+    exit 1
+fi
+
 SERVICE_PATH=$HOME/.config/systemd/user/podman-$SERVICE_NAME.service
 
-echo "Variable values:"
-echo "POD=$POD"
-echo "IMAGE=$IMAGE"
-echo "SERVICE_NAME=$SERVICE_NAME"
-echo "FTP_STORAGE=$FTP_STORAGE"
-echo "SERVICE_PATH=$SERVICE_PATH"
+#echo "Variable values:"
+#echo "POD=$POD"
+#echo "IMAGE=$IMAGE"
+#echo "SERVICE_NAME=$SERVICE_NAME"
+#echo "FTP_STORAGE=$FTP_STORAGE"
+#echo "SERVICE_PATH=$SERVICE_PATH"
 
 mkdir -p "$HOME/.config/systemd/user" "$HOME/.local/bin"
 
@@ -52,7 +57,7 @@ Wants=network-online.target
 PartOf=podman-$DB_SERVICE_NAME.service
 
 [Service]
-ExecStart=$HOME/.local/bin/"$SERVICE_NAME"_run.sh $SERVICE_NAME $IMAGE $POD $FTP_STORAGE $HOME/$SERVICE_NAME/log/vsftpd warn
+ExecStart=$HOME/.local/bin/${SERVICE_NAME}_run.sh $SERVICE_NAME $IMAGE $POD $FTP_STORAGE $HOME/$SERVICE_NAME/log/vsftpd warn
 #ExecStartPost=
 ExecStop=/usr/bin/podman stop --ignore $SERVICE_NAME
 ExecStopPost=/usr/bin/podman rm --force --ignore $SERVICE_NAME
@@ -65,8 +70,8 @@ TimeoutStopSec=30
 WantedBy=default.target
 EOF
 
-cp "$SERVICE_NAME"_run.sh $HOME/.local/bin/ && chmod 744 $HOME/.local/bin/"$SERVICE_NAME"_run.sh
+cp vsftpd_run.sh $HOME/.local/bin/"$SERVICE_NAME"_run.sh && chmod 744 $HOME/.local/bin/"$SERVICE_NAME"_run.sh
 
 systemctl --user daemon-reload
 systemctl --user enable podman-$SERVICE_NAME.service
-loginctl enable-linger $(whoami)
+loginctl enable-linger $(whoami) || true
