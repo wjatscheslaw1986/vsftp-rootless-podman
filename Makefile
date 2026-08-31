@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.DEFAULT_GOAL := install
+.DEFAULT_GOAL := build
 
 AUTH_DB_IMAGE := mariadb
 VSFTPD_IMAGE := vsftpd
@@ -43,9 +43,6 @@ FTP_USER_GID := $(shell echo $$(( $(HOST_UID_OFFSET) + 9898)))
 		autoload stop down clean \
 		secrets ssl-keys check-secrets check-pod \
 		directories check-directories
-
-install: build autoload
-
 
 build: ssl-keys images podman-secrets pod directories
 
@@ -274,9 +271,7 @@ stop:
 
 down: stop
 	@echo 'Disable the systemd service and remove the pod "$(POD)"'
-	-systemctl --user stop podman-$(AUTH_DB_CONTAINER).service podman-$(VSFTPD_CONTAINER).service
 	-systemctl --user disable podman-$(AUTH_DB_CONTAINER).service podman-$(VSFTPD_CONTAINER).service
-	-podman pod stop "$(POD)"
 	-podman container rm "$(VSFTPD_CONTAINER)"
 	-podman container rm "$(AUTH_DB_CONTAINER)"
 	-podman pod rm "$(POD)"
