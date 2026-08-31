@@ -44,7 +44,7 @@ FTP_USER_GID := $(shell echo $$(( $(HOST_UID_OFFSET) + 9898)))
 		secrets ssl-keys check-secrets check-pod \
 		directories check-directories
 
-build: ssl-keys images podman-secrets pod directories
+build: ssl-keys images podman-secrets wipe-passwords pod directories
 
 
 images:
@@ -285,5 +285,7 @@ clean: down
 	-podman secret rm mariadb-root-password
 	-podman secret rm vsftpd-ftps-key
 	-podman secret rm mariadb-password
+	@./wipe_secrets.sh
 
-
+wipe-passwords:
+	@./wipe_secrets.sh
